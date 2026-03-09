@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Vendor {
+  id                 String   @id @default(cuid())
+  name               String
+  category           String
+  paymentTermsDays   Int      @default(30)
+  creditLimitInr     Float
+  outstandingBalance Float    @default(0)
+  avgDaysToPay       Float?
+  latePaymentCount   Int      @default(0)
+  totalTransactions  Int      @default(0)
+  riskScore          Float?
+  riskLevel          String?
+  lastAssessedAt     DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  invoices        Invoice[]
+  transactions    CashFlowTransaction[]
+  riskAssessments VendorRiskAssessment[]
+
+  @@index([category])
+  @@index([riskLevel])
+}
+
+model Invoice {
+  id                   String   @id @default(cuid())
+  invoiceNumber        String   @unique
+  vendorId             String
+  vendor               Vendor   @relation(fields: [vendorId], references: [id])
+  amountInr            Float
+  taxAmountInr         Float    @default(0)
+  totalAmountInr       Float
+  issueDate            DateTime
+  dueDate              DateTime
+  status               String   @default("open")
+  matchConfidence      Float?
+  matchedTxId          String?
+  discrepancyAmountInr Float    @default(0)
+  discrepancyReason    String?
+  agentNotes           String?
+  lineItemsJson        Json?
+  embeddingId          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([vendorId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model CashFlowTransaction {
+  id            String   @id @default(cuid())
+  date          DateTime
+  amountInr     Float
+  type          String
+  category      String
+  businessUnit  String
+  description   String
+  vendorId      String?
+  vendor        Vendor?  @relation(fields: [vendorId], references: [id])
+  isForecast    Boolean  @default(false)
+  forecastRunId String?
+  confidence    Float?
+  createdAt     DateTime @default(now())
+
+  @@index([vendorId])
+  @@index([date])
+  @@index([businessUnit])
+  @@index([category])
+  @@index([type])
+}
+
+model CashFlowForecast {
+  id                 String   @id @default(cuid())
+  runAt              DateTime @default(now())
+  scenarioType       String
+  periodStart        DateTime
+  periodEnd          DateTime
+  businessUnit       String
+  predictedAmountInr Float
+  actualAmountInr    Float?
+  variancePercent    Float?
+  agentRunId         String?
+  agentTrace         Json?
+  subAgentOutputs    Json?
+  createdAt          DateTime @default(now())
+
+  @@index([scenarioType])
+  @@index([businessUnit])
+}
+
+model VendorRiskAssessment {
+  id                 String   @id @default(cuid())
+  vendorId           String
+  vendor             Vendor   @relation(fields: [vendorId], references: [id])
+  assessedAt         DateTime @default(now())
+  paymentScore       Float
+  concentrationScore Float
+  creditScore        Float
+  overallRiskScore   Float
+  riskLevel          String
+  recommendation     String
+  agentReasoning     String
+  agentRunId         String?
+
+  @@index([vendorId])
+  @@index([riskLevel])
+}
+
+model AgentRunLog {
+  id          String    @id @default(cuid())
+  useCase     String
+  sessionId   String
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  status      String
+  nodeTrace   Json
+  finalOutput Json?
+  userApproved Boolean?
+  metadata    Json?
+
+  @@index([useCase])
+  @@index([sessionId])
+}
+
+model CopilotSession {
+  id        String         @id @default(cuid())
+  startedAt DateTime       @default(now())
+  endedAt   DateTime?
+  queries   CopilotQuery[]
+}
+
+model CopilotQuery {
+  id              String         @id @default(cuid())
+  sessionId       String
+  session         CopilotSession @relation(fields: [sessionId], references: [id])
+  question        String
+  answer          String
+  sourcesUsed     String[]
+  confidenceScore Float
+  chartSpecJson   Json?
+  faissDocIds     String[]
+  agentRunId      String?
+  createdAt       DateTime       @default(now())
+
+  @@index([sessionId])
+}
+
+model FinancialDocument {
+  id          String   @id @default(cuid())
+  title       String
+  category    String
+  content     String
+  embeddingId String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([category])
+}
